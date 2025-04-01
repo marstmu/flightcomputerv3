@@ -32,17 +32,3 @@ while True:
     print('Linear Accelertaion: x{:5.0f}  y:{:5.1f}  z: {:5.1f}'.format(*imu.lin_acc())) # Linear Acceleration of the bno055 sensor
     print('Quaternions: w: {:0.5f} x {:0.5f} y {:0.5f} z{:0.5f}'.format(*imu.quaternion())) # Quaternions of the bno055 sensor 
     print('-----------------------------------------------------------------------')
-    
-    
-
-
-
-
-
-
-
-
-
-
-
-

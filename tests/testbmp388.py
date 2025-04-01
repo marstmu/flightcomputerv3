@@ -28,19 +28,3 @@ while True:
     print("Altitude {:0.5f} ".format(bmp388.readAltitude())) # prints the altitude (without calibration)
     
     time.sleep(0.1)
-    
-    
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
