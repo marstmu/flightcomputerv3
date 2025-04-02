@@ -1,5 +1,4 @@
 from src.flight import FlightComputer
-from src.led import change_led
 from lib.icm42670 import read_who_am_i, configure_sensor, set_accel_scale, set_gyro_scale
 
 import asyncio
@@ -17,9 +16,8 @@ async def main():
 
     gps_task = asyncio.create_task(flight.poll_gps())
     transmit_task = asyncio.create_task(flight.transmit())
-    led_task = asyncio.create_task(change_led())
 
-    await asyncio.gather(gps_task, transmit_task, led_task)
+    await asyncio.gather(gps_task, transmit_task)
 
 
 if __name__ == '__main__':
