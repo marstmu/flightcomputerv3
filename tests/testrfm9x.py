@@ -1,4 +1,4 @@
-from rfm9x.py import *
+from lib.rfm9x import *
 from machine import SPI, Pin
 
 #ESP32 Example

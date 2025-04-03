@@ -1,6 +1,6 @@
 import machine # hardware function (Pins and I2C)
 import time # used if you want to put delays in the code
-from bno055 import *  # imports micropython_bno055 Bosch library
+from lib.bno055 import * # imports micropython_bno055 Bosch library
 
 # Used to Communicate with the BNO055
 # 0 - i2c bus number

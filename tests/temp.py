@@ -1,4 +1,4 @@
-from micropython_rfm9x import *
+from lib.rfm9x import *
 from machine import SPI, Pin
 import time
 

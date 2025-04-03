@@ -1,4 +1,4 @@
-from bmp388 import DFRobot_BMP388_SPI
+from lib.bmp388 import DFRobot_BMP388_SPI 
 from machine import SPI, Pin
 import time
 
