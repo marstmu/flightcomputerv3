@@ -3,8 +3,8 @@ from machine import SPI, Pin, I2C
 
 
 def initialize_rf() -> RFM9x:
-    CS = Pin(20, Pin.OUT)
-    RESET = Pin(17, Pin.OUT)
+    CS = Pin(17, Pin.OUT)
+    RESET = Pin(16, Pin.OUT)
     spi = SPI(0,
               baudrate=1000000,
               polarity=0,
@@ -13,7 +13,7 @@ def initialize_rf() -> RFM9x:
               firstbit=SPI.MSB,
               sck=Pin(18),
               mosi=Pin(19),
-              miso=Pin(16)
+              miso=Pin(20)
               )
 
     rf = RFM9x(spi, CS, RESET, 915.0)

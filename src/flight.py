@@ -3,11 +3,10 @@ import struct
 
 from machine import SPI, Pin, I2C
 from lib.l86gps import L86GPS
-from lib.lps22 import LPS22
 from lib.rfm9x import RFM9x
-from lib.fusion import Fusion
+from lib.bno055 import BNO055
+from lib.bmp388 import DFRobot_BMP388_SPI
 from src.rf import initialize_rf
-from lib.icm42670 import read_accel_data, read_gyro_data
 
 class FlightComputer:
 
@@ -15,19 +14,21 @@ class FlightComputer:
 
     rf: RFM9x
 
-    fusion: Fusion
+    bno: BNO055
+
+    bmp: DFRobot_BMP388_SPI
 
     gps_data: dict
-
-    lps: LPS22
 
     def __init__(self):
         self.gps = L86GPS()
         self.rf = initialize_rf()
-        self.fusion = Fusion()
 
-        i2c_barometer = I2C(0, scl=Pin(9), sda=Pin(8))
-        self.lps = LPS22(i2c_barometer)
+        bno_i2c = I2C(0, sda=Pin(4), scl=Pin(5), timeout=100_000)
+        self.bno = BNO055(bno_i2c, address=0x28, crystal=True, transpose=(0, 1, 2), sign=(0, 0, 0))
+
+        bmp_spi = SPI(1, baudrate=100000, polarity=0, phase=0, sck=Pin(10), mosi=Pin(11), miso=Pin(8))
+        self.bmp = DFRobot_BMP388_SPI(bmp_spi, Pin(9, Pin.OUT))
 
         self.gps_data = {
             'latitude': 0.0,
@@ -49,26 +50,18 @@ class FlightComputer:
 
     async def transmit(self):
         while True:
-            # TODO (Noah): I don't like how ICM is global
-            accel = read_accel_data()
-            gyro = read_gyro_data()
-            # Temp, pressure
-            _, pressure = self.lps.get()
-
-            self.fusion.update_nomag(accel, gyro)
-            data = self.encode_transmission_data(pressure, accel, gyro)
+            data = self.encode_transmission_data()
             if data:
                 self.rf.send(data)
                 print("Data sent")
 
             await asyncio.sleep(0.05)
 
-    def encode_transmission_data(self, pressure, accel, gyro) -> bytes | None:
+    def encode_transmission_data(self) -> bytes | None:
         format_string = '<14f'  # 4 quaternions, lat, lon, alt, pressure, 3 accel, 3 gyro
-        q = self.fusion.get_q()
         return struct.pack(format_string,
-                        q[0], q[1], q[2], q[3],
+                        *self.bno.quaternion(),
                            self.gps_data["latitude"], self.gps_data["longitude"], self.gps_data["altitude"],
-                           pressure,
-                           accel[0], accel[1], accel[2],
-                           gyro[0], gyro[1], gyro[2])
+                           0.0,
+                           *self.bno.accel(),
+                           *self.bno.gyro())
