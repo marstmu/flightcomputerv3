@@ -9,18 +9,26 @@ from lib.bmp388 import DFRobot_BMP388_SPI
 from src.rf import initialize_rf
 
 class FlightComputer:
+    """
+    flight computer class responsible for sensor integration, data acquisition, and telemetry transmission.
+    manages the rocket's navigation systems, orientation tracking, and ground communication.
+    """
 
-    gps: L86GPS
+    gps: L86GPS  # gps module for geospatial positioning data acquisition (latitude, longitude, altitude)
 
-    rf: RFM9x
+    rf: RFM9x  # radio frequency transceiver module for telemetry data transmission to ground station
 
-    bno: BNO055
+    bno: BNO055  # 9-dof inertial measurement unit providing acceleration, gyroscopic, and quaternion data for precise orientation tracking
 
-    bmp: DFRobot_BMP388_SPI
+    bmp: DFRobot_BMP388_SPI  # barometric pressure sensor for altitude determination and atmospheric measurements
 
-    gps_data: dict
+    gps_data: dict  # storage container for the most recent valid gps coordinate and altitude information
 
     def __init__(self):
+        """
+        initialize all flight computer subsystems and sensors.
+        configures communication buses, sensor parameters, and initializes data structures.
+        """
         self.gps = L86GPS()
         self.rf = initialize_rf()
 
@@ -37,6 +45,14 @@ class FlightComputer:
         }
 
     async def poll_gps(self):
+        """
+        asynchronous task that continuously acquires gps data at regular intervals.
+        processes and validates incoming nmea sentences, extracting position information
+        when available. updates the internal gps_data dictionary with valid coordinates.
+        
+        operates at 10hz polling frequency to maintain reliable data acquisition without
+        overwhelming the serial interface.
+        """
         while True:
             gps_values = self.gps.read_gps()
             if gps_values and gps_values['type'] == 'GPGGA' and gps_values['status'] == 'valid':
@@ -46,19 +62,41 @@ class FlightComputer:
                     'altitude': gps_values['altitude']
                 }
 
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.1)  # 10hz polling frequency provides optimal balance between responsiveness and system stability, nothing above 0.1 of starts spazzing
 
     async def transmit(self):
+        """
+        asynchronous telemetry transmission task that periodically sends sensor data packages
+        to the ground station. encodes all relevant flight parameters into a compact binary format 
+        for efficient radio transmission. 
+        
+        operates at 20hz transmission rate to provide high-resolution flight data while
+        maintaining reliable rf link performance.
+        """
         while True:
             data = self.encode_transmission_data()
             if data:
                 self.rf.send(data)
                 print("Data sent")
 
-            await asyncio.sleep(0.05)
+            await asyncio.sleep(0.05)  # 20hz transmission frequency ensures timely delivery of critical flight parameters.
 
     def encode_transmission_data(self) -> bytes | None:
-        format_string = '<14f'  # 4 quaternions, lat, lon, alt, pressure, 3 accel, 3 gyro
+        """
+        encodes sensor telemetry into a compact binary format suitable for radio transmission.
+        
+        utilizes the struct module to create a standardized binary packet containing:
+        - quaternion orientation data (4 float values)
+        - gps position coordinates (latitude, longitude, altitude)
+        - barometric pressure reading
+        - acceleration vector components (x, y, z)
+        - angular velocity measurements (x, y, z)
+        
+        returns:
+            bytes: binary packet containing all flight telemetry data
+            none: if encoding fails
+        """
+        format_string = '<14f'  # 14 floating point values for the bno's
         return struct.pack(format_string,
                         *self.bno.quaternion(),
                            self.gps_data["latitude"], self.gps_data["longitude"], self.gps_data["altitude"],
