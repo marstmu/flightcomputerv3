@@ -1,18 +1,28 @@
 import asyncio
 
 class Logger:
-    def __init__(self):
-        self.file = open("test.txt", "w")
+    def __init__(self, filename="flight_log.csv"):
+        self.filename = filename
+        self.file = open(filename, "w")
+        self.write_header()
 
-    async def log(self):
-       while True:
-           await asyncio.sleep(2)
-           self.file.write("hi\n")
+    def write_header(self):
+        """Create a header for the CSV file"""
+        header = "timestamp,quat_w,quat_x,quat_y,quat_z,lat,long,alt,pressure,accel_x,accel_y,accel_z,gyro_x,gyro_y,gyro_z"
+        self.file.write(header + "\n")
+
+    async def log(self, data=None):
+        """Log flight data to CSV"""
+        if data:
+            log_line = ",".join(map(str, data))
+            self.file.write(log_line + "\n")
+        else: 
+            empty_row = ",".join(["0"] * 15)  # Fill with zeros
+            self.file.write(empty_row + "\n")
 
     async def flush(self):
         # Timer to flush
         while True:
             await asyncio.sleep(2)
-            self.file.close()
-            self.file = open("test.txt", "w")
+            self.file.flush()
 

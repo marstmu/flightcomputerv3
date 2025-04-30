@@ -1,0 +1,2 @@
+- logger function pass the data from flight computer to the logger function
+- Make header for the file 

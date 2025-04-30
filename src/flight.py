@@ -1,5 +1,6 @@
 import asyncio
 import struct
+import time
 
 from machine import SPI, Pin, I2C
 from lib.l86gps import L86GPS
@@ -79,33 +80,47 @@ class FlightComputer:
         maintaining reliable rf link performance.
         """
         while True:
-            data = self.encode_transmission_data()
-            if data:
-                await self.logger.log()
-                self.rf.send(data)
+            # get current time
+            timestamp = time.time()
+            
+            # get sensor data and encoded binary
+            result = self.encode_transmission_data()
+            
+            if result:
+                raw_data, binary_data = result
+                log_data = [timestamp] + raw_data
+
+                # Send the binary data
+                await self.logger.log(log_data)
+                self.rf.send(binary_data)
                 print("Data sent")
 
             await asyncio.sleep(0.05)  # 20hz transmission frequency ensures timely delivery of critical flight parameters.
 
-    def encode_transmission_data(self) -> bytes | None:
+    def encode_transmission_data(self) -> tuple[list[float], bytes] | None:
         """
-        encodes sensor telemetry into a compact binary format suitable for radio transmission.
+        Collects and encodes sensor telemetry.
         
-        utilizes the struct module to create a standardized binary packet containing:
-        - quaternion orientation data (4 float values)
-        - gps position coordinates (latitude, longitude, altitude)
-        - barometric pressure reading
-        - acceleration vector components (x, y, z)
-        - angular velocity measurements (x, y, z)
-        
-        returns:
-            bytes: binary packet containing all flight telemetry data
-            none: if encoding fails
+        Returns:
+            tuple: (raw_data, binary_data) where:
+                - raw_data is a list of float values
+                - binary_data is the packed binary format for transmission
+            None: if encoding fails
         """
-        format_string = '<14f'  # 14 floating point values for the bno's
-        return struct.pack(format_string,
-                        *self.bno.quaternion(),
-                           self.gps_data["latitude"], self.gps_data["longitude"], self.gps_data["altitude"],
-                           0.0,
-                           *self.bno.accel(),
-                           *self.bno.gyro())
+        # Collect all sensor data
+        quaternion = self.bno.quaternion()
+        gps_coords = [self.gps_data["latitude"], self.gps_data["longitude"], self.gps_data["altitude"]]
+        pressure = 0.0  # Placeholder for pressure
+        accel = self.bno.accel()
+        gyro = self.bno.gyro()
+        
+        # Combine all data
+        raw_data = list(quaternion) + gps_coords + [pressure] + list(accel) + list(gyro)
+        
+        # Pack for transmission
+        format_string = '<14f'  # 14 floating point values
+        try:
+            binary_data = struct.pack(format_string, *raw_data)
+            return raw_data, binary_data
+        except Exception:
+            return None
