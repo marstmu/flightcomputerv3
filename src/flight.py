@@ -7,6 +7,7 @@ from lib.rfm9x import RFM9x
 from lib.bno055 import BNO055
 from lib.bmp388 import DFRobot_BMP388_SPI
 from src.rf import initialize_rf
+from src.logger import Logger
 
 class FlightComputer:
     """
@@ -23,6 +24,8 @@ class FlightComputer:
     bmp: DFRobot_BMP388_SPI  # barometric pressure sensor for altitude determination and atmospheric measurements
 
     gps_data: dict  # storage container for the most recent valid gps coordinate and altitude information
+
+    logger: Logger
 
     def __init__(self):
         """
@@ -43,6 +46,8 @@ class FlightComputer:
             'longitude': 0.0,
             'altitude': 0.0,
         }
+
+        self.logger = Logger()
 
     async def poll_gps(self):
         """
@@ -76,6 +81,7 @@ class FlightComputer:
         while True:
             data = self.encode_transmission_data()
             if data:
+                await self.logger.log()
                 self.rf.send(data)
                 print("Data sent")
 
