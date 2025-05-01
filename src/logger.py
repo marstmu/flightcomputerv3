@@ -1,7 +1,15 @@
 import asyncio
+import os
 
 class Logger:
     def __init__(self, filename="flight_log.csv"):
+        if os.path.exists(filename):
+            # Move to the logs folder under a new name
+            if not os.path.exists("logs"):
+                os.mkdir("logs")
+
+            os.rename(filename, "logs/" + filename + "." + str(time.time()))
+
         self.filename = filename
         self.file = open(filename, "w")
         self.write_header()
