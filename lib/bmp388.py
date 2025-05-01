@@ -1,5 +1,5 @@
-# From machine import Pin,I2C,SPI
 import time
+import machine
 from math import pow
 import sys
 class DFRobot_BMP388:
@@ -24,7 +24,7 @@ class DFRobot_BMP388:
     # Print(hex(chip_id))
     if (chip_id != 0x50):
       print("chip id error!")
-      sys.exit()
+      machine.reset()
     self.get_calib_data()
     self.set_config()
   
