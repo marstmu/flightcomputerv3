@@ -1,6 +1,6 @@
 import asyncio
 import struct
-import time
+import utime
 
 from machine import SPI, Pin, I2C
 from lib.l86gps import L86GPS
@@ -27,6 +27,8 @@ class FlightComputer:
     gps_data: dict  # storage container for the most recent valid gps coordinate and altitude information
 
     logger: Logger
+
+    start_time = utime.ticks_ms()
 
     def __init__(self):
         """
@@ -55,7 +57,7 @@ class FlightComputer:
         asynchronous task that continuously acquires gps data at regular intervals.
         processes and validates incoming nmea sentences, extracting position information
         when available. updates the internal gps_data dictionary with valid coordinates.
-        
+
         operates at 10hz polling frequency to maintain reliable data acquisition without
         overwhelming the serial interface.
         """
@@ -73,34 +75,29 @@ class FlightComputer:
     async def transmit(self):
         """
         asynchronous telemetry transmission task that periodically sends sensor data packages
-        to the ground station. encodes all relevant flight parameters into a compact binary format 
-        for efficient radio transmission. 
-        
+        to the ground station. encodes all relevant flight parameters into a compact binary format
+        for efficient radio transmission.
+
         operates at 20hz transmission rate to provide high-resolution flight data while
         maintaining reliable rf link performance.
         """
         while True:
-            # get current time
-            timestamp = time.time()
-            
             # get sensor data and encoded binary
             result = self.encode_transmission_data()
-            
+
             if result:
-                raw_data, binary_data = result
-                log_data = [timestamp] + raw_data
+                log_data, binary_data = result
 
                 # Send the binary data
                 await self.logger.log(log_data)
                 self.rf.send(binary_data)
-                print("Data sent")
 
             await asyncio.sleep(0.05)  # 20hz transmission frequency ensures timely delivery of critical flight parameters.
 
     def encode_transmission_data(self) -> tuple[list[float], bytes] | None:
         """
         Collects and encodes sensor telemetry.
-        
+
         Returns:
             tuple: (raw_data, binary_data) where:
                 - raw_data is a list of float values
@@ -108,17 +105,32 @@ class FlightComputer:
             None: if encoding fails
         """
         # Collect all sensor data
-        quaternion = self.bno.quaternion()
-        gps_coords = [self.gps_data["latitude"], self.gps_data["longitude"], self.gps_data["altitude"]]
-        pressure = 0.0  # Placeholder for pressure
-        accel = self.bno.accel()
-        gyro = self.bno.gyro()
-        
+        # get current time
+        current_time = utime.ticks_ms()
+        timestamp = utime.ticks_diff(current_time, self.start_time) / 1000
+
+        quaternion = list(self.bno.quaternion())
+        # Convert quaternions to short int
+        quaternion[0] *= 100
+        quaternion[1] *= 100
+        quaternion[2] *= 100
+        quaternion[3] *= 100
+
+        gps_coords = [self.gps_data["latitude"] * 100, self.gps_data["longitude"] * 100, self.gps_data["altitude"]]
+        pressure = self.bmp.readPressure()
+
+        # Convert accel to short int
+        accel = list(self.bno.accel())
+        accel[0] *= 100
+        accel[1] *= 100
+        accel[2] *= 100
+
         # Combine all data
-        raw_data = list(quaternion) + gps_coords + [pressure] + list(accel) + list(gyro)
-        
+        raw_data = [timestamp] + quaternion + gps_coords + [pressure] + accel
+
         # Pack for transmission
-        format_string = '<14f'  # 14 floating point values
+        # Float timestamp, 4 short int quaternions (w, x, y, z), 3 short int latitude, longitude and altitude, 1 float pressure, 3 short int acceleration (x, y, z)
+        format_string = "<1f4h3h1f3h"
         try:
             binary_data = struct.pack(format_string, *raw_data)
             return raw_data, binary_data
