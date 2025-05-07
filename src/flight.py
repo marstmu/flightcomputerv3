@@ -110,20 +110,23 @@ class FlightComputer:
         timestamp = utime.ticks_diff(current_time, self.start_time) / 1000
 
         quaternion = list(self.bno.quaternion())
-        # Convert quaternions to short int
+        # Multiply by 100 for us to convert to short int
         quaternion[0] *= 100
         quaternion[1] *= 100
         quaternion[2] *= 100
         quaternion[3] *= 100
+        quaternion = list(map(int, quaternion))
 
         gps_coords = [self.gps_data["latitude"] * 100, self.gps_data["longitude"] * 100, self.gps_data["altitude"]]
+        gps_coords = list(map(int, gps_coords))
         pressure = self.bmp.readPressure()
 
-        # Convert accel to short int
+        # Multiply by 100 for us to convert to short int
         accel = list(self.bno.accel())
         accel[0] *= 100
         accel[1] *= 100
         accel[2] *= 100
+        accel = list(map(int, accel))
 
         # Combine all data
         raw_data = [timestamp] + quaternion + gps_coords + [pressure] + accel
