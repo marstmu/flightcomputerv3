@@ -141,15 +141,24 @@ class FlightComputer:
         accel[3] *= 100
         accel = list(map(int, accel))
 
-        lat = int(self.gps.latitude * 100)
-        long = int(self.gps.longitude * 100)
+        lat = 0
+        if self.gps.latitude:
+            lat = int(self.gps.latitude * 100)
+
+        long = 0
+        if self.gps.longitude:
+            long = int(self.gps.longitude * 100)
+
+        speed = 0
+        if self.gps.speed_knots:
+            speed = self.gps.speed_knots / 1.944
 
         # Send down BMP, log GPS
         log_data = [timestamp] + quaternion + [lat, long] + [int(self.gps.altitude_m), pressure] + accel
-        raw_data = [timestamp] + quaternion + [lat, long] + [int(altitude), pressure] + [accel[1]]
+        raw_data = [timestamp] + quaternion + [lat, long] + [int(altitude), pressure] + [speed]
 
         # Pack for transmission
-        # Float timestamp, 4 short int quaternions (w, x, y, z), 3 short int latitude, longitude and altitude, 1 float pressure, 1 short Z accel.
+        # Float timestamp, 4 short int quaternions (w, x, y, z), 3 short int latitude, longitude and altitude, 1 float pressure, 1 short speed (m/s).
         format_string = "<1f4h3h1f1h"
         try:
             binary_data = struct.pack(format_string, *raw_data)
