@@ -2,8 +2,8 @@ import asyncio
 import struct
 import utime
 
-from machine import SPI, Pin, I2C
-from lib.l86gps import L86GPS
+from machine import SPI, Pin, I2C, UART
+from lib.adafruit_gps import GPS
 from lib.rfm9x import RFM9x
 from lib.bno055 import BNO055
 from lib.bmp388 import DFRobot_BMP388_SPI
@@ -17,7 +17,7 @@ class FlightComputer:
     manages the rocket's navigation systems, orientation tracking, and ground communication.
     """
 
-    gps: L86GPS  # gps module for geospatial positioning data acquisition (latitude, longitude, altitude)
+    gps: GPS  # gps module for geospatial positioning data acquisition (latitude, longitude, altitude)
 
     rf: RFM9x  # radio frequency transceiver module for telemetry data transmission to ground station
 
@@ -31,13 +31,24 @@ class FlightComputer:
 
     start_time = utime.ticks_ms()
 
+    ALTITUDE = 90
+
+    CHANNEL = 5
+
     def __init__(self):
         """
         initialize all flight computer subsystems and sensors.
         configures communication buses, sensor parameters, and initializes data structures.
         """
-        self.gps = L86GPS()
+        # Init the GPS
+        uart = UART(0, baudrate=9600, tx=Pin(0), rx=Pin(1))
+        self.gps = GPS(uart)
+        self.gps.send_command("PMTK314,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,0")
+        self.gps.send_command("PMTK220,100")
+
+
         self.rf = initialize_rf()
+        self.rf.node = self.CHANNEL
 
         bno_i2c = I2C(0, sda=Pin(4), scl=Pin(5), timeout=100_000)
         self.bno = BNO055(bno_i2c, address=0x28, crystal=True, transpose=(0, 1, 2), sign=(0, 0, 0))
@@ -63,13 +74,11 @@ class FlightComputer:
         overwhelming the serial interface.
         """
         while True:
-            gps_values = self.gps.read_gps()
-            if gps_values and gps_values['type'] == 'GPGGA' and gps_values['status'] == 'valid':
-                self.gps_data = {
-                    'latitude': gps_values['latitude'],
-                    'longitude': gps_values['longitude'],
-                    'altitude': gps_values['altitude']
-                }
+            has_data = self.gps.update()
+            if has_data:
+                # Check for fix
+                if not self.gps.has_fix:
+                    print("Waiting for fix...")
 
             await asyncio.sleep(
                 0.1)  # 10hz polling frequency provides optimal balance between responsiveness and system stability, nothing above 0.1 of starts spazzing
@@ -120,24 +129,31 @@ class FlightComputer:
         quaternion[3] *= 100
         quaternion = list(map(int, quaternion))
 
-        sea_level = self.bmp.readSeaLevel(90)
+        # BMP altitude
+        sea_level = self.bmp.readSeaLevel(self.ALTITUDE)
         altitude = self.bmp.readCalibratedAltitude(sea_level)
         pressure = self.bmp.readPressure()
 
         # Multiply by 100 for us to convert to short int
         accel = list(self.bno.accel())
+        accel[0] *= 100
         accel[1] *= 100
+        accel[3] *= 100
         accel = list(map(int, accel))
 
-        # Combine all data
-        raw_data = [timestamp] + quaternion + [int(altitude), pressure] + [accel[1]]
+        lat = int(self.gps.latitude * 100)
+        long = int(self.gps.longitude * 100)
+
+        # Send down BMP, log GPS
+        log_data = [timestamp] + quaternion + [lat, long] + [int(self.gps.altitude_m), pressure] + accel
+        raw_data = [timestamp] + quaternion + [lat, long] + [int(altitude), pressure] + [accel[1]]
 
         # Pack for transmission
-        # Float timestamp, 4 short int quaternions (w, x, y, z), 3 short int latitude, longitude and altitude, 1 float pressure, 3 short int acceleration (x, y, z)
-        format_string = "<1f5h1f1h"
+        # Float timestamp, 4 short int quaternions (w, x, y, z), 3 short int latitude, longitude and altitude, 1 float pressure, 1 short Z accel.
+        format_string = "<1f4h3h1f1h"
         try:
             binary_data = struct.pack(format_string, *raw_data)
-            return raw_data, binary_data
+            return log_data, binary_data
         except Exception as e:
             print(e)
             return None
