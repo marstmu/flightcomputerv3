@@ -1,6 +1,7 @@
 import asyncio
 import struct
 import utime
+import math
 
 from machine import SPI, Pin, I2C, UART
 from lib.adafruit_gps import GPS
@@ -136,9 +137,11 @@ class FlightComputer:
 
         # Multiply by 100 for us to convert to short int
         accel = list(self.bno.accel())
+        speed = math.sqrt((accel[0] ** 2) + (accel[1] ** 2) + (accel[2] ** 2)) * 100
+
         accel[0] *= 100
         accel[1] *= 100
-        accel[3] *= 100
+        accel[2] *= 100
         accel = list(map(int, accel))
 
         lat = 0
@@ -149,13 +152,13 @@ class FlightComputer:
         if self.gps.longitude:
             long = int(self.gps.longitude * 100)
 
-        speed = 0
-        if self.gps.speed_knots:
-            speed = self.gps.speed_knots / 1.944
+        gps_alt = 0
+        if self.gps.altitude_m:
+            gps_alt = int(self.gps.altitude_m)
 
         # Send down BMP, log GPS
-        log_data = [timestamp] + quaternion + [lat, long] + [int(self.gps.altitude_m), pressure] + accel
-        raw_data = [timestamp] + quaternion + [lat, long] + [int(altitude), pressure] + [speed]
+        log_data = [timestamp] + quaternion + [lat, long] + [gps_alt, pressure] + accel
+        raw_data = [timestamp] + quaternion + [lat, long] + [int(altitude), pressure] + [int(speed)]
 
         # Pack for transmission
         # Float timestamp, 4 short int quaternions (w, x, y, z), 3 short int latitude, longitude and altitude, 1 float pressure, 1 short speed (m/s).
@@ -166,4 +169,5 @@ class FlightComputer:
         except Exception as e:
             print(e)
             return None
+
 
