@@ -10,6 +10,7 @@ from lib.bmp388 import DFRobot_BMP388_SPI
 from src.rf import initialize_rf
 from src.logger import Logger
 
+
 class FlightComputer:
     """
     flight computer class responsible for sensor integration, data acquisition, and telemetry transmission.
@@ -70,7 +71,8 @@ class FlightComputer:
                     'altitude': gps_values['altitude']
                 }
 
-            await asyncio.sleep(0.1)  # 10hz polling frequency provides optimal balance between responsiveness and system stability, nothing above 0.1 of starts spazzing
+            await asyncio.sleep(
+                0.1)  # 10hz polling frequency provides optimal balance between responsiveness and system stability, nothing above 0.1 of starts spazzing
 
     async def transmit(self):
         """
@@ -92,7 +94,8 @@ class FlightComputer:
                 await self.logger.log(log_data)
                 self.rf.send(binary_data)
 
-            await asyncio.sleep(0.05)  # 20hz transmission frequency ensures timely delivery of critical flight parameters.
+            await asyncio.sleep(
+                0.05)  # 20hz transmission frequency ensures timely delivery of critical flight parameters.
 
     def encode_transmission_data(self) -> tuple[list[float], bytes] | None:
         """
@@ -117,25 +120,25 @@ class FlightComputer:
         quaternion[3] *= 100
         quaternion = list(map(int, quaternion))
 
-        gps_coords = [self.gps_data["latitude"] * 100, self.gps_data["longitude"] * 100, self.gps_data["altitude"]]
-        gps_coords = list(map(int, gps_coords))
+        sea_level = self.bmp.readSeaLevel(90)
+        altitude = self.bmp.readCalibratedAltitude(sea_level)
         pressure = self.bmp.readPressure()
 
         # Multiply by 100 for us to convert to short int
         accel = list(self.bno.accel())
-        accel[0] *= 100
         accel[1] *= 100
-        accel[2] *= 100
         accel = list(map(int, accel))
 
         # Combine all data
-        raw_data = [timestamp] + quaternion + gps_coords + [pressure] + accel
+        raw_data = [timestamp] + quaternion + [int(altitude), pressure] + [accel[1]]
 
         # Pack for transmission
         # Float timestamp, 4 short int quaternions (w, x, y, z), 3 short int latitude, longitude and altitude, 1 float pressure, 3 short int acceleration (x, y, z)
-        format_string = "<1f4h3h1f3h"
+        format_string = "<1f5h1f1h"
         try:
             binary_data = struct.pack(format_string, *raw_data)
             return raw_data, binary_data
-        except Exception:
+        except Exception as e:
+            print(e)
             return None
+
