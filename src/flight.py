@@ -179,9 +179,9 @@ class FlightComputer:
         accel[2] *= 100
         accel = list(map(int, accel))
 
-        # Log BMP, send GPS
-        log_data = [timestamp] + quaternion + [self.gps_data["lat"], self.gps_data["long"]] + [altitude, pressure] + accel + [self.gps_data["fix"], self.gps_data["sats"], self.gps_data["hor_dilution"], self.gps_data["height"], self.gps_data["velo"], self.gps_data["speed"], self.gps_data["track_angle"]]
-        raw_data = [timestamp] + quaternion + [self.gps_data["lat"], self.gps_data["long"]] + [self.gps_data["alt"], pressure] + [int(speed)]
+        # Send down BMP, log GPS
+        log_data = [timestamp] + quaternion + [self.gps_data["lat"], self.gps_data["long"]] + [self.gps_data["alt"], pressure] + accel + [self.gps_data["fix"], self.gps_data["sats"], self.gps_data["hor_dilution"], self.gps_data["height"], self.gps_data["velo"], self.gps_data["speed"], self.gps_data["track_angle"]]
+        raw_data = [timestamp] + quaternion + [int(self.gps_data["lat"] * 100), int(self.gps_data["long"] * 100)] + [int(self.gps_data["alt"]), pressure] + [int(speed)]
 
         # Pack for transmission
         # Float timestamp, 4 short int quaternions (w, x, y, z), 3 short int latitude, longitude and altitude, 1 float pressure, 1 short speed (m/s).
