@@ -136,13 +136,14 @@ class FlightComputer:
 
             if result:
                 # Send the binary data
-                await self.logger.log(result)
-                # self.rf.send(binary_data)
+                log_data, binary_data = result
+                await self.logger.log(log_data)
+                self.rf.send(binary_data)
 
             await asyncio.sleep(
                 0.05)  # 20hz transmission frequency ensures timely delivery of critical flight parameters.
 
-    def encode_transmission_data(self) -> list[float] | None:
+    def encode_transmission_data(self) -> tuple[list[float], bytes] | None:
         """
         Collects and encodes sensor telemetry.
 
@@ -184,10 +185,10 @@ class FlightComputer:
 
         # Pack for transmission
         # Float timestamp, 4 short int quaternions (w, x, y, z), 3 short int latitude, longitude and altitude, 1 float pressure, 1 short speed (m/s).
-        # format_string = "<1f4h3h1f1h"
+        format_string = "<1f4h3h1f1h"
         try:
-            # binary_data = struct.pack(format_string, *raw_data)
-            return log_data
+            binary_data = struct.pack(format_string, *raw_data)
+            return log_data, binary_data
         except Exception as e:
             print(e)
             return None
