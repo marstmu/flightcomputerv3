@@ -32,7 +32,7 @@ class FlightComputer:
 
     start_time = utime.ticks_ms()
 
-    ALTITUDE = 90
+    ALTITUDE = 200
 
     CHANNEL = 5
 
@@ -56,13 +56,20 @@ class FlightComputer:
 
         bmp_spi = SPI(1, baudrate=100000, polarity=0, phase=0, sck=Pin(10), mosi=Pin(11), miso=Pin(8))
         self.bmp = DFRobot_BMP388_SPI(bmp_spi, Pin(9, Pin.OUT))
+        self.sea_level = self.bmp.readSeaLevel(self.ALTITUDE)
 
         self.gps_data = {
-            'latitude': 0.0,
-            'longitude': 0.0,
-            'altitude': 0.0,
+            "lat": 0,
+            "long": 0,
+            "alt": 0,
+            "fix": 0,
+            "sats": 0,
+            "hor_dilution": 0,
+            "height": 0,
+            "velo": 0,
+            "speed": 0,
+            "track_angle": 0
         }
-
         self.logger = Logger()
 
     async def poll_gps(self):
@@ -81,6 +88,36 @@ class FlightComputer:
                 if not self.gps.has_fix:
                     print("Waiting for fix...")
 
+                if self.gps.latitude:
+                    self.gps_data["lat"] = self.gps.latitude
+
+                if self.gps.longitude:
+                    self.gps_data["long"] = self.gps.longitude
+
+                if self.gps.altitude_m:
+                    self.gps_data["alt"] = self.gps.altitude_m
+
+                if self.gps.fix_quality:
+                    self.gps_data["fix"] = self.gps.fix_quality
+
+                if self.gps.satellites:
+                    self.gps_data["sats"] = self.gps.satellites
+
+                if self.gps.horizontal_dilution:
+                    self.gps_data["hor_dilution"] = self.gps.horizontal_dilution
+
+                if self.gps.height_geoid:
+                    self.gps_data["height"] = self.gps.height_geoid
+
+                if self.gps.velocity_knots:
+                    self.gps_data["speed"] = self.gps.velocity_knots
+
+                if self.gps.speed_knots:
+                    self.gps_data["speed"] = self.gps.speed_knots
+
+                if self.gps.track_angle_deg:
+                    self.gps_data["track_angle"] = self.gps.track_angle_deg
+
             await asyncio.sleep(
                 0.1)  # 10hz polling frequency provides optimal balance between responsiveness and system stability, nothing above 0.1 of starts spazzing
 
@@ -98,16 +135,14 @@ class FlightComputer:
             result = self.encode_transmission_data()
 
             if result:
-                log_data, binary_data = result
-
                 # Send the binary data
-                await self.logger.log(log_data)
-                self.rf.send(binary_data)
+                await self.logger.log(result)
+                # self.rf.send(binary_data)
 
             await asyncio.sleep(
                 0.05)  # 20hz transmission frequency ensures timely delivery of critical flight parameters.
 
-    def encode_transmission_data(self) -> tuple[list[float], bytes] | None:
+    def encode_transmission_data(self) -> list[float] | None:
         """
         Collects and encodes sensor telemetry.
 
@@ -131,8 +166,7 @@ class FlightComputer:
         quaternion = list(map(int, quaternion))
 
         # BMP altitude
-        sea_level = self.bmp.readSeaLevel(self.ALTITUDE)
-        altitude = self.bmp.readCalibratedAltitude(sea_level)
+        altitude = self.bmp.readCalibratedAltitude(self.sea_level)
         pressure = self.bmp.readPressure()
 
         # Multiply by 100 for us to convert to short int
@@ -144,30 +178,20 @@ class FlightComputer:
         accel[2] *= 100
         accel = list(map(int, accel))
 
-        lat = 0
-        if self.gps.latitude:
-            lat = int(self.gps.latitude * 100)
-
-        long = 0
-        if self.gps.longitude:
-            long = int(self.gps.longitude * 100)
-
-        gps_alt = 0
-        if self.gps.altitude_m:
-            gps_alt = int(self.gps.altitude_m)
-
         # Send down BMP, log GPS
-        log_data = [timestamp] + quaternion + [lat, long] + [gps_alt, pressure] + accel
-        raw_data = [timestamp] + quaternion + [lat, long] + [int(altitude), pressure] + [int(speed)]
+        log_data = [timestamp] + quaternion + [self.gps_data["lat"], self.gps_data["long"]] + [self.gps_data["alt"], pressure] + accel + [self.gps_data["fix"], self.gps_data["sats"], self.gps_data["hor_dilution"], self.gps_data["height"], self.gps_data["velo"], self.gps_data["speed"], self.gps_data["track_angle"]]
+        raw_data = [timestamp] + quaternion + [self.gps_data["lat"], self.gps_data["long"]] + [self.gps_data["alt"], pressure] + [int(speed)]
 
         # Pack for transmission
         # Float timestamp, 4 short int quaternions (w, x, y, z), 3 short int latitude, longitude and altitude, 1 float pressure, 1 short speed (m/s).
-        format_string = "<1f4h3h1f1h"
+        # format_string = "<1f4h3h1f1h"
         try:
-            binary_data = struct.pack(format_string, *raw_data)
-            return log_data, binary_data
+            # binary_data = struct.pack(format_string, *raw_data)
+            return log_data
         except Exception as e:
             print(e)
             return None
+
+
 
 

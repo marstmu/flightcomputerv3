@@ -102,6 +102,9 @@ class GPS:
         if sentence is None:
             return False
         data_type, args = sentence
+        if not args:
+            return False
+
         data_type = data_type.upper()
         if data_type == b'GPGGA':      # GGA, 3d location fix
             self._parse_gpgga(args)

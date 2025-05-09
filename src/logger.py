@@ -23,7 +23,7 @@ class Logger:
 
     def write_header(self):
         """Create a header for the CSV file"""
-        header = "timestamp,quat_w,quat_x,quat_y,quat_z,lat,long,alt,pressure,accel_x,accel_y,accel_z"
+        header = "timestamp,quat_w,quat_x,quat_y,quat_z,lat,long,alt,pressure,accel_x,accel_y,accel_z,fix_quality,satellites,horizontal_dilution,height_geoid,velocity(kt),speed(kt),track_angle_deg"
         self.file.write(header + "\n")
 
     async def log(self, data=None):
@@ -41,4 +41,5 @@ class Logger:
             await asyncio.sleep(2)
             self.file.close()
             self.file = open(self.filename, "a")
+
 
